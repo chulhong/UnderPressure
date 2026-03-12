@@ -150,6 +150,16 @@ export default function Admin() {
         text: res.message || `Restored ${data.records.length} records.`,
       });
       setFile(null);
+      // Refetch settings so Admin UI shows restored devices and high zone
+      getSettings()
+        .then((s) => setSettings({
+          receiver_email: s.receiver_email ?? '',
+          auto_backup_enabled: s.auto_backup_enabled !== false,
+          devices: Array.isArray(s.devices) ? s.devices : [],
+          sbp_high: typeof s.sbp_high === 'number' ? s.sbp_high : 135,
+          dbp_high: typeof s.dbp_high === 'number' ? s.dbp_high : 85,
+        }))
+        .catch(() => {});
     } catch (err) {
       if (err instanceof SyntaxError) {
         setRestoreMessage({ type: 'error', text: 'Invalid JSON in file.' });

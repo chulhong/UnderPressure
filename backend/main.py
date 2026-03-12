@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -264,10 +264,10 @@ def trigger_backup():
 
 
 @app.post("/api/restore")
-def restore(body: dict):
+def restore(body: dict = Body(...)):
     """
     Replace all records (and optionally settings) with the provided JSON.
-    Body must have "records" (array). Optional "settings" restores system settings (e.g. devices).
+    Body must have "records" (array). Optional "settings" restores system settings (devices, high zone, etc.).
     """
     if "records" not in body:
         raise HTTPException(400, "Body must contain 'records' array")
@@ -278,15 +278,22 @@ def restore(body: dict):
             s = body["settings"]
             opts = {}
             if "receiver_email" in s:
-                opts["receiver_email"] = s["receiver_email"]
+                opts["receiver_email"] = str(s["receiver_email"] or "").strip()
             if "auto_backup_enabled" in s:
-                opts["auto_backup_enabled"] = s["auto_backup_enabled"]
+                opts["auto_backup_enabled"] = bool(s["auto_backup_enabled"])
             if "devices" in s:
-                opts["devices"] = s["devices"]
-            if "sbp_high" in s:
-                opts["sbp_high"] = s["sbp_high"]
-            if "dbp_high" in s:
-                opts["dbp_high"] = s["dbp_high"]
+                devs = s["devices"]
+                opts["devices"] = [str(d).strip() for d in devs if d and str(d).strip()] if isinstance(devs, list) else []
+            if "sbp_high" in s and s["sbp_high"] is not None:
+                try:
+                    opts["sbp_high"] = int(s["sbp_high"])
+                except (TypeError, ValueError):
+                    pass
+            if "dbp_high" in s and s["dbp_high"] is not None:
+                try:
+                    opts["dbp_high"] = int(s["dbp_high"])
+                except (TypeError, ValueError):
+                    pass
             if opts:
                 save_settings(**opts)
                 msg += " Settings restored."
