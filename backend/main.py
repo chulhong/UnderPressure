@@ -9,8 +9,7 @@ from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, Response
 
 from .aggregation import aggregate
 from .backup import run_backup, run_backup_to
@@ -303,6 +302,31 @@ def restore(body: dict = Body(...)):
 
 
 # Serve frontend static build when present (e.g. production / Raspberry Pi)
-_frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist" / "index.html"
-if _frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=_frontend_dist.parent, html=True), name="frontend")
+# Use a catch-all so SPA routes (e.g. /admin, /log) get index.html and the client router can handle them.
+_frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+_frontend_index = _frontend_dist / "index.html"
+
+
+def _resolve_frontend_path(full_path: str) -> Path | None:
+    """Resolve path under frontend dist; return None if outside dist (e.g. path traversal)."""
+    if full_path.startswith("api/"):
+        return None
+    # Normalize and resolve to avoid path traversal
+    resolved = (_frontend_dist / full_path).resolve()
+    try:
+        resolved.relative_to(_frontend_dist.resolve())
+    except ValueError:
+        return None
+    return resolved
+
+
+if _frontend_index.exists():
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str):
+        path = _resolve_frontend_path(full_path)
+        if path is None:
+            raise HTTPException(404, "Not Found")
+        if path.is_file():
+            return FileResponse(path)
+        return FileResponse(_frontend_index)
