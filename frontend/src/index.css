@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --app-bg: #f8fafc;
+  --card-bg: #ffffff;
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --header-bg: #0f172a;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html.dark {
+  --app-bg: #0f172a;
+  --card-bg: #1e293b;
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --header-bg: #020617;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-width: 320px;
+  font-family: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  background: var(--app-bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Touch-friendly: minimum tap target 44px */
+button, a[role="button"], .btn-tap {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@media (pointer: fine) {
+  button, a[role="button"], .btn-tap {
+    min-height: 0;
+    min-width: 0;
+  }
+}
+
+/* Card style */
+.card {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: var(--card-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+html.dark .card {
+  border-color: rgba(51, 65, 85, 0.8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Dark mode: text on main/card surfaces (so light text is visible) */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 { color: var(--text); }
+html.dark .text-slate-600 { color: var(--text-muted); }
+html.dark .text-slate-500 { color: var(--text-muted); }
+
+/* Dark mode: surfaces that are light in light theme → dark so text stays readable */
+html.dark .bg-white { background-color: #334155; }
+html.dark .bg-slate-50 { background-color: #1e293b; }
+html.dark .bg-slate-100 { background-color: #334155; }
+html.dark .bg-slate-200 { background-color: #475569; }
+html.dark .bg-teal-50 { background-color: #134e4a; }
+html.dark .bg-amber-50 { background-color: #451a03; }
+
+/* Dark mode: borders and dividers */
+html.dark .border-slate-200,
+html.dark .border-slate-100 { border-color: #475569; }
+html.dark .border-slate-300 { border-color: #64748b; }
+html.dark .divide-slate-200 > * + * { border-top-color: #475569; }
+
+/* Dark mode: hover states for list/table rows and buttons */
+html.dark .hover\:bg-slate-200:hover { background-color: #475569; }
+html.dark .hover\:bg-slate-50\/80:hover { background-color: rgba(51, 65, 85, 0.8); }
+
+/* Dark mode: inputs */
+html.dark input[type="text"],
+html.dark input[type="email"],
+html.dark input[type="number"],
+html.dark input[type="date"],
+html.dark textarea {
+  background: #334155;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: #94a3b8; }
+
+/* Dark mode: file input button (Admin) */
+html.dark input[type="file"]::file-selector-button {
+  background-color: #134e4a;
+  color: #5eead4;
+}
+html.dark input[type="file"]::file-selector-button:hover {
+  background-color: #0f766e;
+}
+
+/* Dark mode: links (Edit/Delete in History) */
+html.dark .text-teal-600 { color: #2dd4bf; }
+html.dark .text-teal-700 { color: #5eead4; }
+html.dark .text-red-600 { color: #f87171; }
+html.dark .text-red-700 { color: #fca5a5; }
+html.dark .text-slate-300 { color: #64748b; }
+html.dark .text-amber-600 { color: #fbbf24; }
+
+/* Focus ring for accessibility */
+input:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--app-bg), 0 0 0 4px var(--accent);
+}

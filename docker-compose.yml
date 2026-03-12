@@ -1,0 +1,17 @@
+# BP-Track-Pi: single service runs backend and serves built frontend.
+# Build frontend first: cd frontend && npm run build && cd ..
+# Then: docker compose up --build
+# Data is stored in ./data.json (mount a volume to persist).
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data.json:/app/data.json
+    env_file:
+      - backend/.env
+    restart: unless-stopped
