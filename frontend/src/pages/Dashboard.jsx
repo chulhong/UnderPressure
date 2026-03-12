@@ -204,8 +204,8 @@ function RangeChart({ data, viewMode, sbpHigh, dbpHigh }) {
 }
 
 export default function Dashboard() {
-  const [period, setPeriod] = useState('month');
-  const [timeRange, setTimeRange] = useState('month');
+  const [period, setPeriod] = useState('week');
+  const [timeRange, setTimeRange] = useState('quarter');
   const [viewMode, setViewMode] = useState('all');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
