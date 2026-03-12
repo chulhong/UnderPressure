@@ -1,5 +1,6 @@
 """JSON storage layer with atomic writes for BP records."""
 
+import errno
 import json
 import os
 from datetime import date
@@ -36,7 +37,23 @@ def _save_raw(data: dict) -> None:
     tmp_path = DATA_FILE.with_suffix(DATA_FILE.suffix + TMP_SUFFIX)
     with open(tmp_path, "w") as f:
         json.dump(data, f, indent=2)
-    os.replace(tmp_path, DATA_FILE)
+    try:
+        os.replace(tmp_path, DATA_FILE)
+    except OSError as e:
+        # On Docker volume mounts, os.replace() can raise EBUSY (16) or EXDEV (18).
+        # Fall back to overwriting the destination in place.
+        if e.errno in (errno.EBUSY, errno.EXDEV):
+            DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(tmp_path) as src:
+                content = src.read()
+            with open(DATA_FILE, "w") as dst:
+                dst.write(content)
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        else:
+            raise
 
 
 def _record_to_dict(r: BPRecord) -> dict:
