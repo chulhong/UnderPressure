@@ -14,10 +14,12 @@ from fastapi.responses import FileResponse, Response
 from .aggregation import aggregate
 from .backup import run_backup, run_backup_to
 from .badges import compute_badges
+from .llm.factory import get_llm_client
 from .migration import run_import
-from .models import BPRecord, BPRecordCreate, ReportRequest
+from .models import BPRecord, BPRecordCreate, InsightsRequest, InsightsResponse, ReportRequest
 from .pdf_report import build_report
 from .settings import get_settings, save_settings
+from .stats import compute_insight_stats
 from .storage import _load_raw, delete, get_all, get_by_date, get_by_date_range, replace_all, upsert
 
 logger = logging.getLogger(__name__)
@@ -218,18 +220,36 @@ def api_get_settings():
 
 @app.put("/api/settings")
 def api_put_settings(body: dict):
-    """Update settings. Body: { receiver_email?, auto_backup_enabled?, devices?, sbp_high?, dbp_high? }."""
+    """Update settings.
+
+    Body: {
+      receiver_email?,
+      auto_backup_enabled?,
+      devices?,
+      sbp_high?,
+      dbp_high?,
+      llm_enabled?,
+      llm_provider?,
+      llm_model?,
+    }.
+    """
     receiver_email = body.get("receiver_email") if "receiver_email" in body else None
     auto_backup_enabled = body.get("auto_backup_enabled") if "auto_backup_enabled" in body else None
     devices = body.get("devices") if "devices" in body else None
     sbp_high = body.get("sbp_high") if "sbp_high" in body else None
     dbp_high = body.get("dbp_high") if "dbp_high" in body else None
+    llm_enabled = body.get("llm_enabled") if "llm_enabled" in body else None
+    llm_provider = body.get("llm_provider") if "llm_provider" in body else None
+    llm_model = body.get("llm_model") if "llm_model" in body else None
     updated = save_settings(
         receiver_email=receiver_email,
         auto_backup_enabled=auto_backup_enabled,
         devices=devices,
         sbp_high=sbp_high,
         dbp_high=dbp_high,
+        llm_enabled=llm_enabled,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
     )
     return updated
 
@@ -240,6 +260,56 @@ def export_data():
     data = dict(_load_raw())
     data["settings"] = get_settings()
     return data
+
+
+@app.post("/api/insights", response_model=InsightsResponse)
+def get_insights(body: InsightsRequest):
+    """
+    Generate AI insights based on stored blood pressure data and configured LLM provider.
+    """
+    settings = get_settings()
+    if not settings.get("llm_enabled"):
+        return InsightsResponse(
+            provider=settings.get("llm_provider", "dummy"),
+            model=settings.get("llm_model", ""),
+            enabled=False,
+            insights="AI insights are currently disabled in Admin settings.",
+        )
+
+    from_date = body.from_date
+    to_date = body.to_date
+    if from_date is not None and to_date is not None and from_date > to_date:
+        raise HTTPException(400, "from must be <= to")
+
+    stats = compute_insight_stats(from_date, to_date)
+    if not stats:
+        return InsightsResponse(
+            provider=settings.get("llm_provider", "dummy"),
+            model=settings.get("llm_model", ""),
+            enabled=True,
+            insights="Not enough data in the selected range to generate insights.",
+        )
+
+    provider = settings.get("llm_provider", "gemini")
+    client = get_llm_client(provider)
+    insights_text = client.generate_insights(
+        stats=stats,
+        from_date=from_date,
+        to_date=to_date,
+        focus=body.focus,
+        locale=body.locale,
+    )
+
+    model_name = settings.get("llm_model", "")
+    if not model_name and hasattr(client, "model_name"):
+        model_name = str(getattr(client, "model_name"))  # type: ignore[assignment]
+
+    return InsightsResponse(
+        provider=provider,
+        model=str(model_name or ""),
+        enabled=True,
+        insights=insights_text or "The LLM did not return any content.",
+    )
 
 
 @app.post("/api/backup/send-email")
@@ -293,6 +363,12 @@ def restore(body: dict = Body(...)):
                     opts["dbp_high"] = int(s["dbp_high"])
                 except (TypeError, ValueError):
                     pass
+            if "llm_enabled" in s:
+                opts["llm_enabled"] = bool(s["llm_enabled"])
+            if "llm_provider" in s and s["llm_provider"] is not None:
+                opts["llm_provider"] = str(s["llm_provider"] or "").strip()
+            if "llm_model" in s and s["llm_model"] is not None:
+                opts["llm_model"] = str(s["llm_model"] or "").strip()
             if opts:
                 save_settings(**opts)
                 msg += " Settings restored."
