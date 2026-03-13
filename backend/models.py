@@ -1,7 +1,7 @@
 """Pydantic models for BP records and API requests/responses."""
 
 from datetime import date
-from typing import Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -71,3 +71,23 @@ class ReportRequest(BaseModel):
     to_date: date = Field(..., alias="to")
 
     model_config = {"populate_by_name": True}
+
+
+class InsightsRequest(BaseModel):
+    """Request body for AI insights generation."""
+
+    from_date: date | None = Field(default=None, alias="from")
+    to_date: date | None = Field(default=None, alias="to")
+    focus: Literal["overview", "trend", "habits", "device"] = "overview"
+    locale: str | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class InsightsResponse(BaseModel):
+    """Response body for AI insights."""
+
+    provider: str
+    model: str
+    enabled: bool
+    insights: str
