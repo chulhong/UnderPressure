@@ -1,8 +1,29 @@
 /**
  * Compute all statistics from aggregated daily data (period=day).
  * data: array of { morning_sbp, morning_dbp, evening_sbp, evening_dbp, label, ... }
- * rangeFrom, rangeTo: date strings for the selected range
+ * rangeFrom, rangeTo: date strings (YYYY-MM-DD) for the selected range; used for daysInRange and measurementRatio.
  * sbpHigh, dbpHigh: thresholds for "high zone"
+ *
+ * COMPUTATION LOGIC (caller must pass data already filtered to [rangeFrom, rangeTo] when range is set):
+ *
+ * — daysInRange: Calendar days from rangeFrom to rangeTo inclusive. Uses noon UTC to avoid DST skew.
+ * — periodsWithData: data.length (number of days in the filtered data that have at least one reading).
+ * — measurementRatio: (periodsWithData / daysInRange) * 100 — % of days in range with at least one reading.
+ * — totalReadings: Sum over all days of (1 per SBP value + 1 per DBP value); each morning/evening pair can add up to 2.
+ * — highZoneRatio: % of those total readings where SBP >= sbpHigh or DBP >= dbpHigh.
+ * — normalZoneRatio: 100 - highZoneRatio.
+ * — avgSbp / avgDbp: Mean of all SBP/DBP values in the period.
+ * — minSbp, maxSbp, minDbp, maxDbp: Min/max over all SBP/DBP values.
+ * — stdDevSbp / stdDevDbp: Population standard deviation of SBP/DBP values.
+ * — morningAvgSbp/Dbp, eveningAvgSbp/Dbp: Mean of morning/evening values only.
+ * — morningEveningDiffSbp/Dbp: evening average − morning average.
+ * — avgPulsePressure, minPulsePressure, maxPulsePressure: From (SBP − DBP) per reading where both present.
+ * — firstHalfAvgSbp/Dbp, secondHalfAvgSbp/Dbp: Mean over first/second half of data (by order of days).
+ * — trendSbp/Dbp: second half average − first half average.
+ * — bestPeriodSbp/Dbp, worstPeriodSbp/Dbp: Day with lowest/highest daily average SBP/DBP.
+ * — periodsWithHigh: Number of days that have at least one reading in the high zone.
+ * — periodsAllInRange: Number of days that have at least one reading and all readings below threshold.
+ * — pctPeriodsAllInRange: (periodsAllInRange / periodsWithData) * 100.
  */
 function stdDev(arr) {
   if (!arr.length) return null;
@@ -96,9 +117,11 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
     }
   }
 
+  // Use noon UTC to avoid DST making a calendar day count as 23 or 25 hours
+  const msPerDay = 24 * 60 * 60 * 1000;
   const daysInRange =
     rangeFrom && rangeTo
-      ? Math.max(1, Math.ceil((new Date(rangeTo) - new Date(rangeFrom)) / (24 * 60 * 60 * 1000)) + 1)
+      ? Math.max(1, Math.round((new Date(rangeTo + 'T12:00:00') - new Date(rangeFrom + 'T12:00:00')) / msPerDay) + 1)
       : null;
   const measurementRatio = daysInRange != null && daysInRange > 0 ? (data.length / daysInRange) * 100 : null;
   const highZoneRatio = totalReadings > 0 ? (highReadings / totalReadings) * 100 : 0;
@@ -223,6 +246,14 @@ const MONTH_NAMES = [
  * Compute fun measurement-habit statistics from daily aggregated data.
  * data: array of { label, morning_sbp, morning_dbp, evening_sbp, evening_dbp } (period=day).
  * Returns { maxConsecutiveDays, currentStreak, byDayOfWeek, byMonth, longestGapDays, busiestWeekday, busiestMonth }.
+ *
+ * COMPUTATION LOGIC:
+ * — maxConsecutiveDays: Max run of consecutive calendar days that have at least one reading (label dates sorted).
+ * — currentStreak: Consecutive days with a reading ending on the most recent reading date, only if that date is today or yesterday.
+ * — byDayOfWeek: For each weekday (0–6), count of days with at least one reading.
+ * — byMonth: For each month (1–12), count of days with data (in the given data set).
+ * — longestGapDays: Max (calendar days − 1) between two consecutive measurement days.
+ * — busiestWeekday / busiestMonth: Weekday or month with the highest count of days with data.
  */
 export function computeMeasurementHabits(data) {
   if (!Array.isArray(data) || data.length === 0) return null;
@@ -319,6 +350,13 @@ export function computeMeasurementHabits(data) {
  * Records with no device (null/empty) are grouped as "Unknown".
  * sbpHigh, dbpHigh: thresholds for high-zone ratio.
  * Returns array of { device, count, readingCount, avgSbp, avgDbp, highReadings, highZoneRatio }.
+ *
+ * COMPUTATION LOGIC:
+ * — count: Number of records (one per calendar day) for that device.
+ * — readingCount: Total SBP + DBP values (each morning/evening SBP or DBP counts as 1).
+ * — avgSbp / avgDbp: Mean of all SBP/DBP values for that device.
+ * — highReadings: Number of (SBP, DBP) pairs where SBP >= sbpHigh or DBP >= dbpHigh.
+ * — highZoneRatio: (highReadings / readingCount) * 100 (readings are pairs; ratio is per reading pair when both present).
  */
 export function computeDeviceStats(records, sbpHigh = 135, dbpHigh = 85) {
   if (!Array.isArray(records) || records.length === 0) return [];

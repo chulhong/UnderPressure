@@ -98,9 +98,14 @@ export default function Statistics() {
     }
   }, [rangeFrom, rangeTo, targetLanguage]);
 
-  const stats = computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh);
+  // Restrict to rows inside the selected range so days-with-data and ratios match the range
+  const dataInRange =
+    rangeFrom && rangeTo && Array.isArray(data)
+      ? data.filter((d) => d.label && d.label >= rangeFrom && d.label <= rangeTo)
+      : data;
+  const stats = computeAllStats(dataInRange, rangeFrom, rangeTo, sbpHigh, dbpHigh);
   const deviceStats = computeDeviceStats(records, sbpHigh, dbpHigh);
-  const habitStats = computeMeasurementHabits(data);
+  const habitStats = computeMeasurementHabits(dataInRange);
 
   const handleRefreshInsights = async () => {
     setInsightsLoading(true);
@@ -245,7 +250,7 @@ Write your final answer in ${languageLabel}.`;
 
       {loading ? (
         <div className="card p-8 text-center text-slate-500">Loading…</div>
-      ) : !stats || data.length === 0 ? (
+      ) : !stats || (Array.isArray(dataInRange) && dataInRange.length === 0) ? (
         <div className="card p-8 text-center text-slate-500">
           No data for the selected range. Log some entries to see statistics.
         </div>
