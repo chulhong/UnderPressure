@@ -9,8 +9,8 @@
  * — daysInRange: Calendar days from rangeFrom to rangeTo inclusive. Uses noon UTC to avoid DST skew.
  * — periodsWithData: data.length (number of days in the filtered data that have at least one reading).
  * — measurementRatio: (periodsWithData / daysInRange) * 100 — % of days in range with at least one reading.
- * — totalReadings: Sum over all days of (1 per SBP value + 1 per DBP value); each morning/evening pair can add up to 2.
- * — highZoneRatio: % of those total readings where SBP >= sbpHigh or DBP >= dbpHigh.
+ * — totalReadings: One reading = one (morning or evening) slot with SBP/DBP. So at most 2 per day. Count slots with at least one value.
+ * — highZoneRatio: % of those readings (slots) where that slot has SBP >= sbpHigh or DBP >= dbpHigh.
  * — normalZoneRatio: 100 - highZoneRatio.
  * — avgSbp / avgDbp: Mean of all SBP/DBP values in the period.
  * — minSbp, maxSbp, minDbp, maxDbp: Min/max over all SBP/DBP values.
@@ -37,14 +37,47 @@ function mean(arr) {
   return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Compute overview metrics from raw records so "days with data" and "total readings" are unambiguous.
+ * — daysWithData: distinct calendar days in [rangeFrom, rangeTo] that have at least one reading.
+ * — totalReadings: one reading = one (morning or evening) slot with at least one SBP/DBP; max 2 per day.
+ * — daysInRange: calendar days from rangeFrom to rangeTo inclusive.
+ * — measurementRatio: (daysWithData / daysInRange) * 100.
+ */
+export function computeOverviewFromRecords(records, rangeFrom, rangeTo) {
+  if (!Array.isArray(records) || !rangeFrom || !rangeTo) return null;
+  const num = (v) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
+  const inRange = records.filter((r) => {
+    const d = r.date != null ? String(r.date).slice(0, 10) : '';
+    return d >= rangeFrom && d <= rangeTo;
+  });
+  if (inRange.length === 0) {
+    const daysInRange = Math.max(1, Math.round((new Date(rangeTo + 'T12:00:00') - new Date(rangeFrom + 'T12:00:00')) / MS_PER_DAY) + 1);
+    return { daysWithData: 0, totalReadings: 0, daysInRange, measurementRatio: 0 };
+  }
+  const daysWithData = new Set(inRange.map((r) => String(r.date).slice(0, 10))).size;
+  let totalReadings = 0;
+  for (const r of inRange) {
+    const hasMorning = num(r.morning_sbp) != null || num(r.morning_dbp) != null;
+    const hasEvening = num(r.evening_sbp) != null || num(r.evening_dbp) != null;
+    if (hasMorning) totalReadings += 1;
+    if (hasEvening) totalReadings += 1;
+  }
+  const daysInRange = Math.max(1, Math.round((new Date(rangeTo + 'T12:00:00') - new Date(rangeFrom + 'T12:00:00')) / MS_PER_DAY) + 1);
+  const measurementRatio = daysInRange > 0 ? (daysWithData / daysInRange) * 100 : null;
+  return { daysWithData, totalReadings, daysInRange, measurementRatio };
+}
+
 export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
   if (!Array.isArray(data) || data.length === 0) return null;
   const num = (v) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
 
   const allSbp = [];
   const allDbp = [];
-  let totalReadings = 0;
-  let highReadings = 0;
+  let totalReadings = 0;   // one reading = one (morning or evening) slot with at least one value
+  let highReadings = 0;    // readings (slots) where that slot is in high zone
   let sbpSum = 0;
   let dbpSum = 0;
   let sbpCount = 0;
@@ -59,43 +92,50 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
   const periodRows = []; // { label, avgSbp, avgDbp } per day
 
   for (const d of data) {
-    const vals = [
-      [num(d.morning_sbp), num(d.morning_dbp)],
-      [num(d.evening_sbp), num(d.evening_dbp)],
-    ];
-    let pointHigh = false;
+    const morningSbp = num(d.morning_sbp);
+    const morningDbp = num(d.morning_dbp);
+    const eveningSbp = num(d.evening_sbp);
+    const eveningDbp = num(d.evening_dbp);
+    const hasMorning = morningSbp != null || morningDbp != null;
+    const hasEvening = eveningSbp != null || eveningDbp != null;
+
+    if (hasMorning) {
+      totalReadings += 1;
+      if ((morningSbp != null && morningSbp >= sbpHigh) || (morningDbp != null && morningDbp >= dbpHigh)) highReadings += 1;
+    }
+    if (hasEvening) {
+      totalReadings += 1;
+      if ((eveningSbp != null && eveningSbp >= sbpHigh) || (eveningDbp != null && eveningDbp >= dbpHigh)) highReadings += 1;
+    }
+
+    let pointHigh = (hasMorning && (morningSbp != null && morningSbp >= sbpHigh || morningDbp != null && morningDbp >= dbpHigh)) ||
+      (hasEvening && (eveningSbp != null && eveningSbp >= sbpHigh || eveningDbp != null && eveningDbp >= dbpHigh));
     let pointAllInRange = true;
     let periodSbpSum = 0;
     let periodSbpCount = 0;
     let periodDbpSum = 0;
     let periodDbpCount = 0;
 
+    const vals = [
+      [morningSbp, morningDbp],
+      [eveningSbp, eveningDbp],
+    ];
     for (const [sbp, dbp] of vals) {
       if (sbp != null) {
-        totalReadings += 1;
         allSbp.push(sbp);
         sbpSum += sbp;
         sbpCount += 1;
         periodSbpSum += sbp;
         periodSbpCount += 1;
-        if (sbp >= sbpHigh) {
-          highReadings += 1;
-          pointHigh = true;
-          pointAllInRange = false;
-        }
+        if (sbp >= sbpHigh) pointAllInRange = false;
       }
       if (dbp != null) {
-        totalReadings += 1;
         allDbp.push(dbp);
         dbpSum += dbp;
         dbpCount += 1;
         periodDbpSum += dbp;
         periodDbpCount += 1;
-        if (dbp >= dbpHigh) {
-          highReadings += 1;
-          pointHigh = true;
-          pointAllInRange = false;
-        }
+        if (dbp >= dbpHigh) pointAllInRange = false;
       }
       if (sbp != null && dbp != null) {
         pulsePressures.push(sbp - dbp);
@@ -103,7 +143,7 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
     }
 
     if (pointHigh) periodsWithHigh += 1;
-    if (pointAllInRange && (num(d.morning_sbp) != null || num(d.evening_sbp) != null)) periodsAllInRange += 1;
+    if (pointAllInRange && (hasMorning || hasEvening)) periodsAllInRange += 1;
 
     if (num(d.morning_sbp) != null) morningSbpHalf.push(num(d.morning_sbp));
     if (num(d.morning_dbp) != null) morningDbpHalf.push(num(d.morning_dbp));
@@ -118,10 +158,9 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
   }
 
   // Use noon UTC to avoid DST making a calendar day count as 23 or 25 hours
-  const msPerDay = 24 * 60 * 60 * 1000;
   const daysInRange =
     rangeFrom && rangeTo
-      ? Math.max(1, Math.round((new Date(rangeTo + 'T12:00:00') - new Date(rangeFrom + 'T12:00:00')) / msPerDay) + 1)
+      ? Math.max(1, Math.round((new Date(rangeTo + 'T12:00:00') - new Date(rangeFrom + 'T12:00:00')) / MS_PER_DAY) + 1)
       : null;
   const measurementRatio = daysInRange != null && daysInRange > 0 ? (data.length / daysInRange) * 100 : null;
   const highZoneRatio = totalReadings > 0 ? (highReadings / totalReadings) * 100 : 0;

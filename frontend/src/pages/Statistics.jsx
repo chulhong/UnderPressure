@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getAggregated, getRecords, getSettings, getInsights } from '../api';
-import { computeAllStats, computeDeviceStats, computeMeasurementHabits } from '../utils/stats';
+import { computeAllStats, computeDeviceStats, computeMeasurementHabits, computeOverviewFromRecords } from '../utils/stats';
 
 const TIME_RANGES = [
   { value: '', label: 'All data', days: null },
@@ -111,6 +111,11 @@ export default function Statistics() {
       ? data.filter((d) => d.label && d.label >= rangeFrom && d.label <= rangeTo)
       : data;
   const stats = computeAllStats(dataInRange, rangeFrom, rangeTo, sbpHigh, dbpHigh);
+  // Overview (days with data, total readings, measurement ratio) from raw records so day vs reading is unambiguous
+  const overviewFromRecords =
+    rangeFrom && rangeTo && Array.isArray(records) && records.length > 0
+      ? computeOverviewFromRecords(records, rangeFrom, rangeTo)
+      : null;
   const deviceStats = computeDeviceStats(records, sbpHigh, dbpHigh);
   const habitStats = computeMeasurementHabits(dataInRange);
 
@@ -329,27 +334,51 @@ Write your final answer in ${languageLabel}.`;
             </div>
           </section>
 
-          {/* Overview */}
+          {/* Overview: use record-based counts when we have a range so "days" vs "readings" are correct */}
           <section>
             <h2 className="text-lg font-semibold text-slate-800 mb-3">Overview</h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {stats.measurementRatio != null && (
-                <StatCard
-                  title="Measurement ratio"
-                  value={`${stats.measurementRatio.toFixed(1)}%`}
-                  subtitle="of days with at least one reading"
-                />
+              {overviewFromRecords ? (
+                <>
+                  {overviewFromRecords.measurementRatio != null && (
+                    <StatCard
+                      title="Measurement ratio"
+                      value={`${overviewFromRecords.measurementRatio.toFixed(1)}%`}
+                      subtitle="of days with at least one reading"
+                    />
+                  )}
+                  <StatCard
+                    title="Total readings"
+                    value={String(overviewFromRecords.totalReadings)}
+                    subtitle="morning or evening (SBP/DBP) per slot"
+                  />
+                  <StatCard
+                    title="Days with data"
+                    value={`${overviewFromRecords.daysWithData}${overviewFromRecords.daysInRange != null ? ` / ${overviewFromRecords.daysInRange}` : ''}`}
+                    subtitle="days in selected range"
+                  />
+                </>
+              ) : (
+                <>
+                  {stats.measurementRatio != null && (
+                    <StatCard
+                      title="Measurement ratio"
+                      value={`${stats.measurementRatio.toFixed(1)}%`}
+                      subtitle="of days with at least one reading"
+                    />
+                  )}
+                  <StatCard
+                    title="Total readings"
+                    value={String(stats.totalReadings)}
+                    subtitle="morning or evening (SBP/DBP) per slot"
+                  />
+                  <StatCard
+                    title="Days with data"
+                    value={`${stats.periodsWithData}${stats.daysInRange != null ? ` / ${stats.daysInRange}` : ''}`}
+                    subtitle="days in selected range"
+                  />
+                </>
               )}
-              <StatCard
-                title="Total readings"
-                value={String(stats.totalReadings)}
-                subtitle="individual SBP/DBP values"
-              />
-              <StatCard
-                title="Days with data"
-                value={`${stats.periodsWithData}${stats.daysInRange != null ? ` / ${stats.daysInRange}` : ''}`}
-                subtitle="days in selected range"
-              />
             </div>
           </section>
 
@@ -639,14 +668,14 @@ Write your final answer in ${languageLabel}.`;
               />
               <StatCard
                 title="Periods with high reading"
-                value={`${stats.periodsWithHigh} / ${stats.periodsWithData}`}
+                value={`${stats.periodsWithHigh} / ${overviewFromRecords?.daysWithData ?? stats.periodsWithData}`}
                 subtitle="days with at least one high reading"
               />
               <StatCard
                 title="Days all in range"
-                value={`${stats.pctPeriodsAllInRange.toFixed(0)}%`}
+                value={`${(overviewFromRecords ? (overviewFromRecords.daysWithData > 0 ? (stats.periodsAllInRange / overviewFromRecords.daysWithData) * 100 : 0) : stats.pctPeriodsAllInRange).toFixed(0)}%`}
                 subtitle={`${stats.periodsAllInRange} days with all readings below threshold`}
-                variant={stats.pctPeriodsAllInRange >= 80 ? 'highlight' : 'default'}
+                variant={(overviewFromRecords ? (overviewFromRecords.daysWithData > 0 ? (stats.periodsAllInRange / overviewFromRecords.daysWithData) * 100 : 0) : stats.pctPeriodsAllInRange) >= 80 ? 'highlight' : 'default'}
               />
             </div>
           </section>
