@@ -282,8 +282,9 @@ export function computeMeasurementHabits(data) {
     maxConsecutiveDays = Math.max(maxConsecutiveDays, run);
   }
 
-  // Current streak: from today backwards (only if latest measurement is today or yesterday)
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Current streak: from today backwards (only if latest measurement is today or yesterday). Use local date.
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const lastDate = dates[dates.length - 1];
   const lastToToday = dayDiff(lastDate, todayStr);
   let currentStreak = 0;

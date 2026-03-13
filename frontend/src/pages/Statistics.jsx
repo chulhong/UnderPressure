@@ -16,15 +16,22 @@ function getInsightsCacheKey(from, to, language) {
   return `${from ?? ''}_${to ?? ''}_${language}`;
 }
 
+/** Format date as local YYYY-MM-DD so range matches user's calendar and stored record dates. */
+function toLocalDateString(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function getRangeForTimeRange(timeRangeKey) {
   const tr = TIME_RANGES.find((r) => r.value === timeRangeKey);
   if (!tr || tr.days == null) return { from: null, to: null };
   const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - tr.days);
+  const from = new Date(to.getFullYear(), to.getMonth(), to.getDate() - tr.days);
   return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
+    from: toLocalDateString(from),
+    to: toLocalDateString(to),
   };
 }
 
