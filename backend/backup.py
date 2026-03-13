@@ -1,20 +1,20 @@
 """Daily email backup: send data.json to user via SMTP."""
 
+import json
 import logging
 import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from pathlib import Path
-
 from dotenv import load_dotenv
 import os
+
+from .settings import get_settings
+from .storage import _load_raw
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-
-DATA_FILE = Path(__file__).resolve().parent.parent / "data.json"
 
 
 def get_smtp_config():
@@ -43,16 +43,14 @@ def run_backup_to(receiver_email: str | None = None) -> tuple[bool, str]:
         msg = "Email backup skipped: no receiver (set RECEIVER_EMAIL in .env or pass receiver_email)"
         logger.warning(msg)
         return False, msg
-    if not DATA_FILE.exists():
-        msg = "No data.json to backup."
-        logger.info(msg)
-        return True, msg
 
     try:
-        with open(DATA_FILE, "rb") as f:
-            data_bytes = f.read()
+        # Same shape as /api/export: records + meta + settings (so auto_backup_enabled etc. are in the attachment)
+        data = dict(_load_raw())
+        data["settings"] = get_settings()
+        data_bytes = json.dumps(data, indent=2).encode("utf-8")
     except OSError as e:
-        logger.exception("Failed to read data.json")
+        logger.exception("Failed to read data for backup")
         return False, str(e)
 
     msg = MIMEMultipart()
