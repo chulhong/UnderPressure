@@ -57,7 +57,10 @@ export function computeOverviewFromRecords(records, rangeFrom, rangeTo) {
     const daysInRange = Math.max(1, Math.round((new Date(rangeTo + 'T12:00:00') - new Date(rangeFrom + 'T12:00:00')) / MS_PER_DAY) + 1);
     return { daysWithData: 0, totalReadings: 0, daysInRange, measurementRatio: 0 };
   }
-  const daysWithData = new Set(inRange.map((r) => String(r.date).slice(0, 10))).size;
+  const hasAnyReading = (r) =>
+    num(r.morning_sbp) != null || num(r.morning_dbp) != null ||
+    num(r.evening_sbp) != null || num(r.evening_dbp) != null;
+  const daysWithData = inRange.filter(hasAnyReading).length; // only days with at least one reading (records can be all-null)
   let totalReadings = 0;
   for (const r of inRange) {
     const hasMorning = num(r.morning_sbp) != null || num(r.morning_dbp) != null;

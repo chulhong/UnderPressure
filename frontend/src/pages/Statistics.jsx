@@ -77,6 +77,9 @@ export default function Statistics() {
 
   useEffect(() => {
     setLoading(true);
+    // Clear previous data so we never show overview from a different range (e.g. "All data" filtered client-side)
+    setData([]);
+    setRecords([]);
     const params = { period: 'day' };
     if (rangeFrom) params.from = rangeFrom;
     if (rangeTo) params.to = rangeTo;
@@ -111,9 +114,10 @@ export default function Statistics() {
       ? data.filter((d) => d.label && d.label >= rangeFrom && d.label <= rangeTo)
       : data;
   const stats = computeAllStats(dataInRange, rangeFrom, rangeTo, sbpHigh, dbpHigh);
-  // Overview (days with data, total readings, measurement ratio) from raw records so day vs reading is unambiguous
+  // Overview (days with data, total readings, measurement ratio) from raw records so day vs reading is unambiguous.
+  // When a range is set, always use record-based overview (records are fetched for this range only after we clear on range change).
   const overviewFromRecords =
-    rangeFrom && rangeTo && Array.isArray(records) && records.length > 0
+    rangeFrom && rangeTo && Array.isArray(records)
       ? computeOverviewFromRecords(records, rangeFrom, rangeTo)
       : null;
   const deviceStats = computeDeviceStats(records, sbpHigh, dbpHigh);
