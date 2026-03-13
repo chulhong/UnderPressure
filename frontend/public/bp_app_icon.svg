@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <!-- Rounded square clip path for iPhone icon shape -->
+    <clipPath id="iconShape">
+      <rect width="180" height="180" rx="40" ry="40"/>
+    </clipPath>
+
+    <!-- Deep crimson to warm coral gradient background -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0a2e;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2d1b4e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a0a2e;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Glow filter for the waveform -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft glow for heart -->
+    <filter id="heartGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Radial glow behind heart -->
+    <radialGradient id="heartHalo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#ff4d6d;stop-opacity:0.35" />
+      <stop offset="100%" style="stop-color:#ff4d6d;stop-opacity:0" />
+    </radialGradient>
+
+    <!-- Heart gradient -->
+    <linearGradient id="heartGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b8a" />
+      <stop offset="100%" style="stop-color:#e8192c" />
+    </linearGradient>
+
+    <!-- Waveform line gradient -->
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ff4d6d;stop-opacity:0.2" />
+      <stop offset="30%" style="stop-color:#ff4d6d;stop-opacity:0.8" />
+      <stop offset="55%" style="stop-color:#ff9eb5;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#ff4d6d;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#ff4d6d;stop-opacity:0.2" />
+    </linearGradient>
+
+    <!-- Grid dot pattern -->
+    <pattern id="dots" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="0.8" fill="#ffffff" opacity="0.06"/>
+    </pattern>
+  </defs>
+
+  <g clip-path="url(#iconShape)">
+    <!-- Background -->
+    <rect width="180" height="180" fill="url(#bgGrad)"/>
+
+    <!-- Subtle dot grid overlay -->
+    <rect width="180" height="180" fill="url(#dots)"/>
+
+    <!-- Subtle top-left corner accent circle -->
+    <circle cx="-10" cy="-10" r="80" fill="none" stroke="#9b5de5" stroke-width="0.5" opacity="0.2"/>
+    <circle cx="-10" cy="-10" r="100" fill="none" stroke="#9b5de5" stroke-width="0.5" opacity="0.1"/>
+
+    <!-- Bottom-right accent -->
+    <circle cx="195" cy="195" r="90" fill="none" stroke="#ff4d6d" stroke-width="0.5" opacity="0.15"/>
+
+    <!-- Heart halo glow -->
+    <ellipse cx="90" cy="72" rx="42" ry="38" fill="url(#heartHalo)"/>
+
+    <!-- Heart shape -->
+    <g filter="url(#heartGlow)">
+      <path d="M90 96
+               C90 96 58 78 58 60
+               C58 48 66 40 76 40
+               C82 40 87 43 90 47
+               C93 43 98 40 104 40
+               C114 40 122 48 122 60
+               C122 78 90 96 90 96Z"
+            fill="url(#heartGrad)" opacity="0.95"/>
+    </g>
+
+    <!-- Heart inner highlight -->
+    <path d="M80 50 C78 46 72 44 70 50" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+
+    <!-- ECG / Pulse waveform line -->
+    <!-- Baseline sits at y=126, the spike goes up through the heart area -->
+    <polyline
+      points="14,126 38,126 48,126 54,126 60,126 65,98 68,148 72,90 76,126 90,126 96,126 100,126 106,126 112,126 118,126 124,126 166,126"
+      fill="none"
+      stroke="url(#waveGrad)"
+      stroke-width="2.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      filter="url(#glow)"
+    />
+
+    <!-- Thin baseline tracks on either side for depth -->
+    <line x1="14" y1="126" x2="62" y2="126" stroke="#ff4d6d" stroke-width="0.5" opacity="0.3"/>
+    <line x1="78" y1="126" x2="166" y2="126" stroke="#ff4d6d" stroke-width="0.5" opacity="0.3"/>
+
+    <!-- BP Numbers: 120/80 -->
+    <!-- Using a clean, bold sans style via text -->
+    <text x="90" y="154" text-anchor="middle"
+          font-family="'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+          font-size="13.5"
+          font-weight="700"
+          letter-spacing="1.5"
+          fill="white"
+          opacity="0.92">120/80</text>
+
+    <!-- mmHg label -->
+    <text x="90" y="168" text-anchor="middle"
+          font-family="'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+          font-size="8"
+          font-weight="400"
+          letter-spacing="2"
+          fill="white"
+          opacity="0.45">mmHg</text>
+
+    <!-- Subtle top shimmer -->
+    <rect width="180" height="3" fill="white" opacity="0.05" rx="1"/>
+  </g>
+</svg>

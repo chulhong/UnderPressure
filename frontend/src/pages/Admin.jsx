@@ -35,6 +35,9 @@ export default function Admin() {
     devices: [],
     sbp_high: 135,
     dbp_high: 85,
+    llm_enabled: false,
+    llm_provider: 'gemini',
+    llm_model: 'gemini-2.5-flash',
   });
   const [newDeviceName, setNewDeviceName] = useState('');
   const [settingsLoading, setSettingsLoading] = useState(true);
@@ -57,8 +60,20 @@ export default function Admin() {
         devices: Array.isArray(s.devices) ? s.devices : [],
         sbp_high: typeof s.sbp_high === 'number' ? s.sbp_high : 135,
         dbp_high: typeof s.dbp_high === 'number' ? s.dbp_high : 85,
+        llm_enabled: s.llm_enabled === true,
+        llm_provider: s.llm_provider || 'gemini',
+        llm_model: s.llm_model || 'gemini-2.5-flash',
       }))
-      .catch(() => setSettings({ receiver_email: '', auto_backup_enabled: true, devices: [], sbp_high: 135, dbp_high: 85 }))
+      .catch(() => setSettings({
+        receiver_email: '',
+        auto_backup_enabled: true,
+        devices: [],
+        sbp_high: 135,
+        dbp_high: 85,
+        llm_enabled: false,
+        llm_provider: 'gemini',
+        llm_model: 'gemini-2.5-flash',
+      }))
       .finally(() => setSettingsLoading(false));
   }, []);
 
@@ -73,6 +88,9 @@ export default function Admin() {
         devices: settings.devices,
         sbp_high: settings.sbp_high,
         dbp_high: settings.dbp_high,
+        llm_enabled: settings.llm_enabled,
+        llm_provider: settings.llm_provider,
+        llm_model: settings.llm_model,
       });
       setSettings(updated);
       setSettingsMessage({ type: 'success', text: 'Settings saved.' });
@@ -299,6 +317,60 @@ export default function Admin() {
                   ))}
                 </ul>
               )}
+            </div>
+            <div className="border-t border-slate-200 pt-4 mt-4 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-800">AI / LLM settings</h3>
+              <p className="text-xs text-slate-500">
+                Configure the AI service used for insights on the Statistics page. API keys must be set on the server.
+              </p>
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.llm_enabled}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, llm_enabled: e.target.checked }))
+                    }
+                    className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-sm font-medium text-slate-700">Enable AI insights</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Provider
+                  </label>
+                  <select
+                    value={settings.llm_provider}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, llm_provider: e.target.value }))
+                    }
+                    className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  >
+                    <option value="gemini">Gemini (Google)</option>
+                    <option value="openai">OpenAI (future)</option>
+                    <option value="dummy">Dummy (no external calls)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Model
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.llm_model}
+                    onChange={(e) =>
+                      setSettings((s) => ({ ...s, llm_model: e.target.value }))
+                    }
+                    placeholder="e.g. gemini-2.5-flash"
+                    className="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    For Gemini, examples: gemini-2.5-flash, gemini-2.5-pro.
+                  </p>
+                </div>
+              </div>
             </div>
             <Message type={settingsMessage.type} text={settingsMessage.text} />
             <button

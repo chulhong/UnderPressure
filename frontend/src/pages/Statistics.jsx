@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAggregated, getRecords, getSettings } from '../api';
+import { getAggregated, getRecords, getSettings, getInsights } from '../api';
 import { computeAllStats, computeDeviceStats, computeMeasurementHabits } from '../utils/stats';
 
 const TIME_RANGES = [
@@ -45,6 +45,11 @@ export default function Statistics() {
   const [data, setData] = useState([]);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [insights, setInsights] = useState(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState('');
+  const [targetLanguage, setTargetLanguage] = useState('en'); // 'en' | 'ko'
+  const [promptCopied, setPromptCopied] = useState('');
 
   const { from: rangeFrom, to: rangeTo } = getRangeForTimeRange(timeRange);
 
@@ -77,6 +82,69 @@ export default function Statistics() {
   const deviceStats = computeDeviceStats(records, sbpHigh, dbpHigh);
   const habitStats = computeMeasurementHabits(data);
 
+  const handleRefreshInsights = async () => {
+    setInsightsLoading(true);
+    setInsightsError('');
+    setPromptCopied('');
+    try {
+      const res = await getInsights({
+        from: rangeFrom || null,
+        to: rangeTo || null,
+        focus: 'overview',
+        locale: targetLanguage === 'ko' ? 'Korean' : 'English',
+      });
+      setInsights(res);
+    } catch (err) {
+      setInsightsError(err.message || 'Failed to load AI insights.');
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
+
+  const includeRaw =
+    timeRange === 'week' || timeRange === 'month' || timeRange === 'quarter';
+  const rawForPrompt = includeRaw ? records : undefined;
+
+  const promptPayload = {
+    range: { from: rangeFrom, to: rangeTo },
+    stats,
+    deviceStats,
+    habitStats,
+    // Raw daily records are only included for shorter ranges (week / month / quarter)
+    rawRecords: rawForPrompt,
+  };
+
+  const languageLabel = targetLanguage === 'ko' ? 'Korean' : 'English';
+
+  const promptText = `You are a professional healthcare assistant helping a user interpret their home blood pressure tracking data.
+Give medical advice, diagnoses, or treatment recommendations, when necessary.
+
+Here is JSON summarizing the user's measurements and statistics for the selected date range:
+
+${JSON.stringify(promptPayload, null, 2)}
+
+Target language: ${languageLabel}
+
+Tasks:
+- Describe main patterns in systolic (SBP) and diastolic (DBP) pressure.
+- Comment on how often readings are in the configured "high zone" compared with below it.
+- Mention any notable changes over time only if clearly visible from the statistics.
+- If there is not enough data, say that clearly.
+- Keep it concise: 2–4 short paragraphs.
+- If you think in another language, translate your final answer into the target language before returning it.
+
+Write your final answer in ${languageLabel}.`;
+
+  const handleCopyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(promptText);
+      setPromptCopied('Prompt copied to clipboard.');
+      setTimeout(() => setPromptCopied(''), 2000);
+    } catch {
+      setPromptCopied('Unable to copy prompt. You can select and copy it manually.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -89,19 +157,29 @@ export default function Statistics() {
       <div className="card p-4 sm:p-5 space-y-4">
         <div>
           <p className="text-sm font-medium text-slate-500 mb-2">Time range</p>
-          <div className="flex flex-wrap gap-2">
-            {TIME_RANGES.map((r) => (
-              <button
-                key={r.value || 'all'}
-                type="button"
-                onClick={() => setTimeRange(r.value)}
-                className={`rounded-lg px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors ${
-                  timeRange === r.value ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3 justify-between">
+            <div className="flex flex-wrap gap-2">
+              {TIME_RANGES.map((r) => (
+                <button
+                  key={r.value || 'all'}
+                  type="button"
+                  onClick={() => setTimeRange(r.value)}
+                  className={`rounded-lg px-3 py-2 sm:py-2.5 text-sm font-medium transition-colors ${
+                    timeRange === r.value ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleRefreshInsights}
+              disabled={insightsLoading}
+              className="mt-2 sm:mt-0 rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700 disabled:opacity-50 transition-colors"
+            >
+              {insightsLoading ? 'Refreshing AI insights…' : 'Refresh AI insights'}
+            </button>
           </div>
         </div>
       </div>
@@ -114,6 +192,72 @@ export default function Statistics() {
         </div>
       ) : (
         <div className="space-y-8">
+          {/* AI insights */}
+          <section>
+            <h2 className="text-lg font-semibold text-slate-800 mb-3">AI insights</h2>
+            <div className="card p-4 sm:p-5 space-y-3">
+              {insightsLoading && (
+                <p className="text-sm text-slate-500">Generating insights…</p>
+              )}
+              {!insightsLoading && insightsError && (
+                <p className="text-sm text-red-600">{insightsError}</p>
+              )}
+              {!insightsLoading && !insightsError && insights && (
+                <>
+                  {!insights.enabled ? (
+                    <p className="text-sm text-slate-600">
+                      {insights.insights || 'AI insights are disabled in Admin settings.'}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-slate-500 mb-1">
+                        Provider: {insights.provider || '—'}
+                        {insights.model ? ` · Model: ${insights.model}` : ''}
+                      </p>
+                      <p className="text-sm whitespace-pre-line text-slate-800">
+                        {insights.insights}
+                      </p>
+                    </>
+                  )}
+                </>
+              )}
+
+              <div className="mt-3 border-t border-slate-200 pt-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Prompt for external AI service
+                    </p>
+                    <label className="flex items-center gap-1 text-xs text-slate-600">
+                      <span>Language:</span>
+                      <select
+                        value={targetLanguage}
+                        onChange={(e) => setTargetLanguage(e.target.value)}
+                        className="rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      >
+                        <option value="en">English</option>
+                        <option value="ko">Korean</option>
+                      </select>
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyPrompt}
+                    className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 transition-colors"
+                  >
+                    Copy prompt
+                  </button>
+                </div>
+                {promptCopied && (
+                  <p className="text-xs text-teal-600">{promptCopied}</p>
+                )}
+                <pre className="max-h-64 overflow-auto rounded-md bg-slate-900 px-3 py-2 text-[11px] text-slate-100 whitespace-pre-wrap">
+{promptText}
+                </pre>
+              </div>
+            </div>
+          </section>
+
           {/* Overview */}
           <section>
             <h2 className="text-lg font-semibold text-slate-800 mb-3">Overview</h2>
@@ -530,6 +674,7 @@ export default function Statistics() {
               </div>
             </section>
           )}
+
         </div>
       )}
     </div>

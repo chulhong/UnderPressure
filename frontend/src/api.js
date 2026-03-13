@@ -139,3 +139,10 @@ export async function restoreFromJson(data) {
     body: JSON.stringify(data),
   });
 }
+
+export async function getInsights(body) {
+  return request('/insights', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
