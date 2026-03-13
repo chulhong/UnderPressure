@@ -84,8 +84,10 @@ def _compute_summary_stats(records: list, sbp_high: int = 135, dbp_high: int = 8
             evening_dbp.append(r.evening_dbp)
     total_readings = len(all_sbp) + len(all_dbp)
     pct_high = round(100 * high_count / total_readings) if total_readings else 0
+    # Only count days that have at least one reading (records can be all-null placeholders)
+    days_with_data = sum(1 for r in records if r.has_any_measurement())
     return {
-        "days_with_data": len(records),
+        "days_with_data": days_with_data,
         "total_readings": total_readings,
         "avg_sbp": round(_avg(all_sbp), 1) if all_sbp else None,
         "avg_dbp": round(_avg(all_dbp), 1) if all_dbp else None,

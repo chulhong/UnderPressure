@@ -92,6 +92,7 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
   const eveningDbpHalf = [];
   const pulsePressures = [];
   let periodsAllInRange = 0;
+  let periodsWithDataCount = 0; // only rows with at least one reading
   const periodRows = []; // { label, avgSbp, avgDbp } per day
 
   for (const d of data) {
@@ -147,6 +148,7 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
 
     if (pointHigh) periodsWithHigh += 1;
     if (pointAllInRange && (hasMorning || hasEvening)) periodsAllInRange += 1;
+    if (hasMorning || hasEvening) periodsWithDataCount += 1;
 
     if (num(d.morning_sbp) != null) morningSbpHalf.push(num(d.morning_sbp));
     if (num(d.morning_dbp) != null) morningDbpHalf.push(num(d.morning_dbp));
@@ -165,10 +167,10 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
     rangeFrom && rangeTo
       ? Math.max(1, Math.round((new Date(rangeTo + 'T12:00:00') - new Date(rangeFrom + 'T12:00:00')) / MS_PER_DAY) + 1)
       : null;
-  const measurementRatio = daysInRange != null && daysInRange > 0 ? (data.length / daysInRange) * 100 : null;
+  const measurementRatio = daysInRange != null && daysInRange > 0 ? (periodsWithDataCount / daysInRange) * 100 : null;
   const highZoneRatio = totalReadings > 0 ? (highReadings / totalReadings) * 100 : 0;
   const normalZoneRatio = totalReadings > 0 ? ((totalReadings - highReadings) / totalReadings) * 100 : 0;
-  const pctPeriodsAllInRange = data.length > 0 ? (periodsAllInRange / data.length) * 100 : 0;
+  const pctPeriodsAllInRange = periodsWithDataCount > 0 ? (periodsAllInRange / periodsWithDataCount) * 100 : 0;
 
   const avgSbp = sbpCount > 0 ? Math.round((sbpSum / sbpCount) * 10) / 10 : null;
   const avgDbp = dbpCount > 0 ? Math.round((dbpSum / dbpCount) * 10) / 10 : null;
@@ -186,9 +188,15 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
   const morningEveningDiffDbp =
     morningAvgDbp != null && eveningAvgDbp != null ? Math.round((eveningAvgDbp - morningAvgDbp) * 10) / 10 : null;
 
-  const half = Math.floor(data.length / 2);
-  const firstHalf = data.slice(0, half);
-  const secondHalf = data.slice(half);
+  // First/second half by rows that have at least one reading, so trend is over measurement days
+  const dataWithReadings = data.filter((d) => {
+    const hasMorning = num(d.morning_sbp) != null || num(d.morning_dbp) != null;
+    const hasEvening = num(d.evening_sbp) != null || num(d.evening_dbp) != null;
+    return hasMorning || hasEvening;
+  });
+  const half = Math.floor(dataWithReadings.length / 2);
+  const firstHalf = dataWithReadings.slice(0, half);
+  const secondHalf = dataWithReadings.slice(half);
   const firstHalfSbp = [];
   const firstHalfDbp = [];
   const secondHalfSbp = [];
@@ -244,7 +252,7 @@ export function computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh) {
     normalZoneRatio,
     avgSbp,
     avgDbp,
-    periodsWithData: data.length,
+    periodsWithData: periodsWithDataCount,
     periodsWithHigh,
     periodsAllInRange,
     pctPeriodsAllInRange,
@@ -300,10 +308,15 @@ const MONTH_NAMES = [
 export function computeMeasurementHabits(data) {
   if (!Array.isArray(data) || data.length === 0) return null;
 
-  const dates = data
-    .map((d) => d.label)
-    .filter((l) => l && /^\d{4}-\d{2}-\d{2}$/.test(l))
-    .sort();
+  const num = (v) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
+  const hasAnyReading = (d) =>
+    num(d.morning_sbp) != null || num(d.morning_dbp) != null ||
+    num(d.evening_sbp) != null || num(d.evening_dbp) != null;
+  // Only consider days that have at least one reading (data can include all-null placeholder rows)
+  const dataWithReadings = data.filter(
+    (d) => d.label && /^\d{4}-\d{2}-\d{2}$/.test(d.label) && hasAnyReading(d)
+  );
+  const dates = dataWithReadings.map((d) => d.label).sort();
   if (dates.length === 0) return null;
 
   const toDate = (s) => new Date(s + 'T12:00:00');
@@ -338,12 +351,10 @@ export function computeMeasurementHabits(data) {
     }
   }
 
-  // By day of week (0=Sun .. 6=Sat): count of days with data
+  // By day of week (0=Sun .. 6=Sat): count of days with at least one reading
   const byDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
   const readingsByDayOfWeek = [0, 0, 0, 0, 0, 0, 0];
-  const num = (v) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
-  for (const d of data) {
-    if (!d.label || !/^\d{4}-\d{2}-\d{2}$/.test(d.label)) continue;
+  for (const d of dataWithReadings) {
     const dayOfWeek = toDate(d.label).getDay();
     byDayOfWeek[dayOfWeek] += 1;
     let readings = 0;
@@ -352,7 +363,7 @@ export function computeMeasurementHabits(data) {
     readingsByDayOfWeek[dayOfWeek] += Math.max(1, readings);
   }
 
-  // By month (1–12): count of days with data
+  // By month (1–12): count of days with at least one reading
   const byMonth = {};
   for (let m = 1; m <= 12; m++) byMonth[m] = 0;
   for (const label of dates) {
@@ -404,9 +415,13 @@ export function computeMeasurementHabits(data) {
 export function computeDeviceStats(records, sbpHigh = 135, dbpHigh = 85) {
   if (!Array.isArray(records) || records.length === 0) return [];
   const num = (v) => (v != null && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : null);
+  const hasAnyReading = (r) =>
+    num(r.morning_sbp) != null || num(r.morning_dbp) != null ||
+    num(r.evening_sbp) != null || num(r.evening_dbp) != null;
   const byDevice = new Map();
 
   for (const r of records) {
+    if (!hasAnyReading(r)) continue; // only count days with at least one reading
     const device = (r.device && String(r.device).trim()) || 'Unknown';
     if (!byDevice.has(device)) {
       byDevice.set(device, {

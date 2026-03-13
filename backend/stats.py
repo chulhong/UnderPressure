@@ -102,7 +102,8 @@ def compute_insight_stats(from_date: date | None, to_date: date | None) -> dict[
         _update_accum(acc, r, sbp_high=sbp_high, dbp_high=dbp_high)
 
     days_in_range = _days_between(from_date, to_date)
-    periods_with_data = len(records)
+    # Only count days that have at least one reading (records can be all-null placeholders)
+    periods_with_data = sum(1 for r in records if r.has_any_measurement())
     measurement_ratio = (periods_with_data / days_in_range * 100.0) if days_in_range > 0 else None
     high_zone_ratio = (
         acc.high_readings / acc.total_readings * 100.0 if acc.total_readings > 0 else 0.0
