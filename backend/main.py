@@ -20,6 +20,7 @@ from .models import BPRecord, BPRecordCreate, InsightsRequest, InsightsResponse,
 from .pdf_report import build_report
 from .settings import get_settings, save_settings
 from .stats import compute_insight_stats
+from .export_data import get_export_payload
 from .storage import _load_raw, delete, get_all, get_by_date, get_by_date_range, replace_all, upsert
 
 logger = logging.getLogger(__name__)
@@ -256,10 +257,8 @@ def api_put_settings(body: dict):
 
 @app.get("/api/export")
 def export_data():
-    """Return full data (records + meta + settings) for download."""
-    data = dict(_load_raw())
-    data["settings"] = get_settings()
-    return data
+    """Return full data (records + meta + settings) for download. Same payload as email backup."""
+    return get_export_payload()
 
 
 @app.post("/api/insights", response_model=InsightsResponse)

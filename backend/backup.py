@@ -1,4 +1,4 @@
-"""Daily email backup: send data.json to user via SMTP."""
+"""Daily email backup: send data.json to user via SMTP. Uses same payload as download and send-to-email."""
 
 import json
 import logging
@@ -9,8 +9,7 @@ from email.mime.text import MIMEText
 from dotenv import load_dotenv
 import os
 
-from .settings import get_settings
-from .storage import _load_raw
+from .export_data import get_export_payload
 
 load_dotenv()
 
@@ -45,9 +44,8 @@ def run_backup_to(receiver_email: str | None = None) -> tuple[bool, str]:
         return False, msg
 
     try:
-        # Same shape as /api/export: records + meta + settings (so auto_backup_enabled etc. are in the attachment)
-        data = dict(_load_raw())
-        data["settings"] = get_settings()
+        # Same payload as Download JSON and /api/export (records + meta + settings)
+        data = get_export_payload()
         data_bytes = json.dumps(data, indent=2).encode("utf-8")
     except OSError as e:
         logger.exception("Failed to read data for backup")
