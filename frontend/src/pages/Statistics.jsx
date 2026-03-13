@@ -10,6 +10,12 @@ const TIME_RANGES = [
   { value: 'year', label: 'Last year', days: 365 },
 ];
 
+const INSIGHTS_CACHE_KEY = 'underpressure_insights_cache';
+
+function getInsightsCacheKey(from, to, language) {
+  return `${from ?? ''}_${to ?? ''}_${language}`;
+}
+
 function getRangeForTimeRange(timeRangeKey) {
   const tr = TIME_RANGES.find((r) => r.value === timeRangeKey);
   if (!tr || tr.days == null) return { from: null, to: null };
@@ -78,6 +84,20 @@ export default function Statistics() {
       .finally(() => setLoading(false));
   }, [rangeFrom, rangeTo]);
 
+  // Restore cached AI insights when time range or language changes
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(INSIGHTS_CACHE_KEY);
+      const cache = raw ? JSON.parse(raw) : {};
+      const key = getInsightsCacheKey(rangeFrom, rangeTo, targetLanguage);
+      const cached = cache[key];
+      setInsights(cached ?? null);
+      if (!cached) setInsightsError('');
+    } catch {
+      setInsights(null);
+    }
+  }, [rangeFrom, rangeTo, targetLanguage]);
+
   const stats = computeAllStats(data, rangeFrom, rangeTo, sbpHigh, dbpHigh);
   const deviceStats = computeDeviceStats(records, sbpHigh, dbpHigh);
   const habitStats = computeMeasurementHabits(data);
@@ -94,6 +114,14 @@ export default function Statistics() {
         locale: targetLanguage === 'ko' ? 'Korean' : 'English',
       });
       setInsights(res);
+      try {
+        const raw = localStorage.getItem(INSIGHTS_CACHE_KEY);
+        const cache = raw ? JSON.parse(raw) : {};
+        cache[getInsightsCacheKey(rangeFrom, rangeTo, targetLanguage)] = res;
+        localStorage.setItem(INSIGHTS_CACHE_KEY, JSON.stringify(cache));
+      } catch {
+        // ignore cache write errors
+      }
     } catch (err) {
       setInsightsError(err.message || 'Failed to load AI insights.');
     } finally {
@@ -135,12 +163,43 @@ Tasks:
 
 Write your final answer in ${languageLabel}.`;
 
-  const handleCopyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(promptText);
+  const handleCopyPrompt = () => {
+    const doCopy = (text) => {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return ok;
+      } catch {
+        document.body.removeChild(textarea);
+        return false;
+      }
+    };
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(promptText)
+        .then(() => {
+          setPromptCopied('Prompt copied to clipboard.');
+          setTimeout(() => setPromptCopied(''), 2000);
+        })
+        .catch(() => {
+          if (doCopy(promptText)) {
+            setPromptCopied('Prompt copied to clipboard.');
+            setTimeout(() => setPromptCopied(''), 2000);
+          } else {
+            setPromptCopied('Unable to copy prompt. You can select and copy it manually.');
+          }
+        });
+    } else if (doCopy(promptText)) {
       setPromptCopied('Prompt copied to clipboard.');
       setTimeout(() => setPromptCopied(''), 2000);
-    } catch {
+    } else {
       setPromptCopied('Unable to copy prompt. You can select and copy it manually.');
     }
   };
