@@ -1,4 +1,4 @@
-# BP-Track-Pi
+# UnderPressure
 
 Lightweight blood pressure tracking web app for Raspberry Pi (or any host). Log morning/evening readings, view trends, earn badges, optional AI insights, and export PDF reports.
 
