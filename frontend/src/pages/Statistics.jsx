@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAggregated, getRecords, getSettings, getInsights } from '../api';
-import { computeAllStats, computeDeviceStats, computeMeasurementHabits, computeOverviewFromRecords } from '../utils/stats';
+import { getRecords, getStatistics, getInsights } from '../api';
 
 const TIME_RANGES = [
   { value: '', label: 'All data', days: null },
@@ -53,9 +52,7 @@ function StatCard({ title, value, subtitle, variant = 'default' }) {
 
 export default function Statistics() {
   const [timeRange, setTimeRange] = useState('');
-  const [sbpHigh, setSbpHigh] = useState(135);
-  const [dbpHigh, setDbpHigh] = useState(85);
-  const [data, setData] = useState([]);
+  const [statistics, setStatistics] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [insights, setInsights] = useState(null);
@@ -66,33 +63,31 @@ export default function Statistics() {
 
   const { from: rangeFrom, to: rangeTo } = getRangeForTimeRange(timeRange);
 
-  useEffect(() => {
-    getSettings()
-      .then((s) => {
-        if (typeof s.sbp_high === 'number' && s.sbp_high >= 90 && s.sbp_high <= 200) setSbpHigh(s.sbp_high);
-        if (typeof s.dbp_high === 'number' && s.dbp_high >= 60 && s.dbp_high <= 120) setDbpHigh(s.dbp_high);
-      })
-      .catch(() => {});
-  }, []);
+  const includeRaw =
+    timeRange === 'week' || timeRange === 'month' || timeRange === 'quarter';
 
   useEffect(() => {
     setLoading(true);
-    // Clear previous data so we never show overview from a different range (e.g. "All data" filtered client-side)
-    setData([]);
-    setRecords([]);
-    const params = { period: 'day' };
+    setStatistics(null);
+    const params = {};
     if (rangeFrom) params.from = rangeFrom;
     if (rangeTo) params.to = rangeTo;
-    const aggPromise = getAggregated(params).then((res) => Array.isArray(res) ? res : []).catch(() => []);
-    const recParams = rangeFrom && rangeTo ? { from: rangeFrom, to: rangeTo } : {};
-    const recPromise = getRecords(recParams).then((res) => Array.isArray(res) ? res : []).catch(() => []);
-    Promise.all([aggPromise, recPromise])
-      .then(([agg, rec]) => {
-        setData(agg);
-        setRecords(rec);
-      })
+    getStatistics(params)
+      .then((res) => setStatistics(res && typeof res === 'object' ? res : null))
+      .catch(() => setStatistics(null))
       .finally(() => setLoading(false));
   }, [rangeFrom, rangeTo]);
+
+  useEffect(() => {
+    if (!includeRaw) {
+      setRecords([]);
+      return;
+    }
+    const recParams = rangeFrom && rangeTo ? { from: rangeFrom, to: rangeTo } : {};
+    getRecords(recParams)
+      .then((res) => setRecords(Array.isArray(res) ? res : []))
+      .catch(() => setRecords([]));
+  }, [includeRaw, rangeFrom, rangeTo]);
 
   // Restore cached AI insights when time range or language changes
   useEffect(() => {
@@ -108,20 +103,10 @@ export default function Statistics() {
     }
   }, [rangeFrom, rangeTo, targetLanguage]);
 
-  // Restrict to rows inside the selected range so days-with-data and ratios match the range
-  const dataInRange =
-    rangeFrom && rangeTo && Array.isArray(data)
-      ? data.filter((d) => d.label && d.label >= rangeFrom && d.label <= rangeTo)
-      : data;
-  const stats = computeAllStats(dataInRange, rangeFrom, rangeTo, sbpHigh, dbpHigh);
-  // Overview (days with data, total readings, measurement ratio) from raw records so day vs reading is unambiguous.
-  // When a range is set, always use record-based overview (records are fetched for this range only after we clear on range change).
-  const overviewFromRecords =
-    rangeFrom && rangeTo && Array.isArray(records)
-      ? computeOverviewFromRecords(records, rangeFrom, rangeTo)
-      : null;
-  const deviceStats = computeDeviceStats(records, sbpHigh, dbpHigh);
-  const habitStats = computeMeasurementHabits(dataInRange);
+  const stats = statistics?.stats ?? null;
+  const overviewFromRecords = statistics?.overview ?? null;
+  const deviceStats = Array.isArray(statistics?.deviceStats) ? statistics.deviceStats : [];
+  const habitStats = statistics?.habitStats ?? null;
 
   const handleRefreshInsights = async () => {
     setInsightsLoading(true);
@@ -150,8 +135,6 @@ export default function Statistics() {
     }
   };
 
-  const includeRaw =
-    timeRange === 'week' || timeRange === 'month' || timeRange === 'quarter';
   const rawForPrompt = includeRaw ? records : undefined;
 
   const promptPayload = {
@@ -266,7 +249,7 @@ Write your final answer in ${languageLabel}.`;
 
       {loading ? (
         <div className="card p-8 text-center text-slate-500">Loading…</div>
-      ) : !stats || (Array.isArray(dataInRange) && dataInRange.length === 0) ? (
+      ) : !statistics?.hasData || !stats ? (
         <div className="card p-8 text-center text-slate-500">
           No data for the selected range. Log some entries to see statistics.
         </div>

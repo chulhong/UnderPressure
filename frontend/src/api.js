@@ -66,6 +66,15 @@ export async function getAggregated(params = {}) {
   return request(`/aggregated${q ? `?${q}` : ''}`);
 }
 
+/** Full statistics (same computation as AI insights). Optional from/to like aggregated. */
+export async function getStatistics(params = {}) {
+  const sp = new URLSearchParams();
+  if (params.from) sp.set('from', params.from);
+  if (params.to) sp.set('to', params.to);
+  const q = sp.toString();
+  return request(`/statistics${q ? `?${q}` : ''}`);
+}
+
 export async function getBadges() {
   return request('/badges');
 }

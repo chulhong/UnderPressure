@@ -25,23 +25,28 @@ Lightweight blood pressure tracking web app for Raspberry Pi (or any host). Log 
 
 ### Virtual environment (.venv)
 
-Create and use a virtual environment so the Python app runs in isolation:
+Use a virtual environment at the project root named **`.venv`** for all Python work (backend, migration CLI, tests). Do not rely on the system Python for project dependencies.
 
 ```bash
-# From project root
+# From project root — create once
 python3 -m venv .venv
-source .venv/bin/activate   # On Windows: .venv\Scripts\activate
-pip install -r backend/requirements.txt
+
+# Install dependencies (paths below avoid needing `activate` first)
+.venv/bin/pip install -r backend/requirements.txt
+# Windows: .venv\Scripts\pip install -r backend\requirements.txt
 ```
 
-Then run the backend with `python run.py` (see below). The migration script and any other Python commands should be run with the same activated `.venv` so they use the same interpreter and dependencies.
+Optional: `source .venv/bin/activate` (Windows: `.venv\Scripts\activate`) and then use `pip` / `python` as usual.
+
+`run.py` re-executes with `.venv`’s interpreter when `.venv` exists, so `python3 run.py` still picks up the venv for the server. For **any other** Python command (e.g. migration), call `.venv/bin/python` explicitly or activate the venv first.
 
 ### Development
 
-1. **Backend** (from project root, with `.venv` activated):
+1. **Backend** (from project root):
    ```bash
-   python run.py
+   .venv/bin/python run.py
    ```
+   (Or: activate `.venv`, then `python run.py`.)
    API: http://127.0.0.1:8000
 
 2. **Frontend** (separate terminal):
@@ -53,13 +58,14 @@ Then run the backend with `python run.py` (see below). The migration script and 
 ### Production (e.g. Raspberry Pi)
 
 1. Copy `backend/.env.example` to `backend/.env` and set SMTP vars for backup (optional). For AI insights, set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, `LLM_PROVIDER=gemini`); enable and choose provider/model in **Admin → System settings → AI / LLM settings**.
-2. Create and activate `.venv`, install dependencies, then build frontend and run:
+2. Create `.venv`, install Python deps, build frontend, then run:
    ```bash
-   python3 -m venv .venv && source .venv/bin/activate
-   pip install -r backend/requirements.txt
+   python3 -m venv .venv
+   .venv/bin/pip install -r backend/requirements.txt
    cd frontend && npm run build && cd ..
-   python run.py
+   .venv/bin/python run.py
    ```
+   (On Windows, use `.venv\Scripts\pip` and `.venv\Scripts\python`.)
    Open http://&lt;host&gt;:8000 — backend serves the built frontend.
 
 ### Docker
@@ -75,7 +81,7 @@ Data is stored in `./data.json`; mount it as in `docker-compose.yml` to persist.
 
 Columns: `date`, `morning_sbp`, `morning_dbp`, `evening_sbp`, `evening_dbp`, `note`. Rows whose first column contains "Week average" are skipped.
 
-- **CLI** (with `.venv` activated): `python -m backend.migration path/to/file.xlsx [import_wins|keep_existing]`
+- **CLI**: `.venv/bin/python -m backend.migration path/to/file.xlsx [import_wins|keep_existing]` (or activate `.venv` first, then `python -m backend.migration …`)
 - **API**: `POST /api/import` with multipart file and query `strategy=import_wins|keep_existing`
 
 ## Backup

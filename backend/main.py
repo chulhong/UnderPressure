@@ -19,7 +19,7 @@ from .migration import run_import
 from .models import BPRecord, BPRecordCreate, InsightsRequest, InsightsResponse, ReportRequest
 from .pdf_report import build_report
 from .settings import get_settings, save_settings
-from .stats import compute_insight_stats
+from .stats import compute_insight_stats, compute_statistics
 from .export_data import get_export_payload
 from .storage import _load_raw, delete, get_all, get_by_date, get_by_date_range, replace_all, upsert
 
@@ -167,6 +167,20 @@ def get_aggregated(
     if from_date > to_date:
         raise HTTPException(400, "from must be <= to")
     return aggregate(from_date, to_date, period)
+
+
+@app.get("/api/statistics")
+def get_statistics(
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
+):
+    """
+    Full statistics payload for the Statistics page and aligned with AI insight inputs.
+    When from/to are omitted, uses the same implicit range as /api/aggregated (all stored data).
+    """
+    if from_date is not None and to_date is not None and from_date > to_date:
+        raise HTTPException(400, "from must be <= to")
+    return compute_statistics(from_date, to_date)
 
 
 @app.post("/api/reports/pdf")

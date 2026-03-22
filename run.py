@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Start BP-Track-Pi backend (and serve frontend if frontend/dist exists).
-Run from project root with .venv activated: python run.py
+Start UnderPressure backend (and serve frontend if frontend/dist exists).
 
-If .venv exists but is not activated, this script re-execs using .venv's Python.
+Run from project root using the project venv, e.g. `.venv/bin/python run.py`.
+If `.venv` exists but you invoked this with another interpreter, the script
+re-execs using `.venv/bin/python` (or `Scripts\\python.exe` on Windows).
 """
 import os
 import sys
